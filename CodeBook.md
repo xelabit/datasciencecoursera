@@ -5,6 +5,7 @@
   * subject -- a 30-level factor variable wich defines the number of a person
     participating in an experiment
   * features' means and standard deviations
+
 ## Features
 	The features selected for this database come from the accelerometer and
 	gyroscope 3-axial raw signals tAcc-XYZ and tGyro-XYZ. These time domain
@@ -40,5 +41,4 @@
  5. A new variable "subject" was added to both data sets.
  6. Then both data sets were united into one.
  7. Finally, a new data frame was derived containing mean values for each
-    variable depending on two factors (activity and subject).	
-		
+    variable depending on two factors (activity and subject).
