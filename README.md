@@ -1,5 +1,5 @@
 # List of variables
-  ## Data frames
+## Data frames
 	* X_test -- test set;
 	* features -- list of all features;
 	* X_train -- training set;
@@ -7,7 +7,7 @@
 	* y_train -- training labels;
 	* subject_test, subject_train -- each row identifies the subject who
 	  performed the activity for each window sample. Its range is from 1 to 30
-  ## Other variables
+## Other variables
 	* valid_column_names_test, valid_column_names_train -- a 561-length vector
 	  based on features data frame but with corrected names (which do not
 	  violate R rules), values of these vectors will then be set as names of
