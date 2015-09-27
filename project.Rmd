@@ -1,0 +1,120 @@
+---
+title: "Motion type prediction"
+author: "Alexander Chumak"
+date: "Sunday, September 27, 2015"
+output: html_document
+---
+
+## Introduction
+
+The aim of the project is to pick up a model which would highly accurate predict the manner people did an exercise (biceps curl). Variable `classe` consits of 5 ways an exercise was done (both correctly and incorrectly).
+
+## Loading the data
+
+```{r, cache=TRUE}
+training_raw <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+```
+Now, let us set seed for reproducibility.
+```{r}
+set.seed(18)
+```
+After that split our `training_raw` data set into actually training and validation so that we could estimate out-of-sample error.
+```{r, message=FALSE}
+library(caret)
+library(dplyr)
+inTrain <- createDataPartition(y = training_raw$classe, p = .7, list = FALSE)
+training <- training_raw[inTrain, ]
+validation <- training_raw[-inTrain, ]
+```
+
+## Preprocessing
+
+A good thing to do is to get rid of those variables, which variability is almost 0, i.e. they mostly have the same value occuring all the time. Such variables will not yield important information to us.
+
+```{r, cache=TRUE, message=FALSE}
+nsv <- nearZeroVar(training, saveMetrics = TRUE)
+training_nsv <- select(training, which(nsv$nzv == FALSE))
+```
+Also let us delete **exactly** the same variables from the validation set. It will make our calculations more simple in the future. Note: this action **will not** impose a bias on a validation set.
+```{r}
+validation_nsv <- select(validation, which(nsv$nzv == FALSE))
+```
+There are variables which mostly consist of NA values. These will cause our prediction models perform poorly. Let us get rid of them as well. It would cumbersome to give an evidence (the output of `nas` variable is pretty large), so you have to take it as a fact. All variables that we need have 0 amount of NAs.
+```{r, cache=TRUE}
+nas <- apply(validation_nsv, 2, function(x){
+        sum(is.na(x))
+})
+validation_nsv <- select(validation_nsv, which(nas == 0))
+training_nsv <- select(training_nsv, which(nas == 0))
+```
+
+### Dummy variables
+
+There are also a couple of factor variables in our data sets, so we want them to transform into dummy ones.
+```{r, cache=TRUE}
+dummies <- dummyVars(classe ~ ., data = training_nsv)
+training_nsv_dum <- as.data.frame(predict(dummies, newdata = training_nsv))
+training_nsv_dum$classe <- training_nsv$classe
+dummies2 <- dummyVars(classe ~ ., data = validation_nsv)
+validation_nsv_dum <- as.data.frame(predict(dummies2, newdata = validation_nsv))
+validation_nsv_dum$classe <- validation_nsv$classe
+```
+
+### Factor correlations
+
+We might also suppose that some predictors are correlated with each other.
+```{r, fig.align='center'}
+M <- abs(cor(training_nsv_dum[, -83]))
+diag(M) <- 0 
+which(M > .8, arr.ind = T)
+plot(training_nsv_dum[, 2], training_nsv_dum[, 32], xlab = names(training_nsv_dum)[2], ylab = names(training_nsv_dum)[32])
+```
+As we may see from the plot Adelmo (one of 6 participants performing an exercise) has lower pitch belt than others.
+
+## Model selection
+
+Now, let us move to the most interesting part. First, define control parameters for our training function. We are going to use 10-fold cross-validation.
+```{r}
+fitControl <- trainControl(method = "cv", number = 10)
+```
+
+### Random forest
+
+No preprocessing
+```{r, cache=TRUE, message=FALSE, eval=FALSE}
+model_rf_no <- train(classe ~ ., data = training_nsv_dum, method = "rf",
+                     trControl = fitControl)
+```
+Preprocessing with principal components.
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+model_rf_pca <- train(classe ~ ., data = training_nsv_dum, method = "rf",
+                     trControl = fitControl, preProcess = "pca")
+model_rf_pca
+```
+Other models has been tested in a similar way but with different parameters. Here is a short summary:
+
+* Random forest, no preprocessing -- 0.9999
+* Random forest, PCA preprocessing -- 0.9864
+* Decision tree, PCA preprocessing -- 0.274
+* Decision tree, no preprocessing -- 0.7648
+* Boosting, no preprocessing -- 0.9967
+* Boosting, PCA preprocessing -- 0.7437
+
+## Validation
+
+I have decided to pick random forest model with PCA preprocessing. It shows good accuracy and principal components seem to be reasonable when it comes to such a great amount of variables. Here is testing results on a validation data set:
+```{r, cache=TRUE}
+predicted_rf_pca <- predict(model_rf_pca, newdata = validation_nsv_dum)
+confusionMatrix(predicted_rf_pca, validation_nsv_dum$classe)
+```
+0.0081-0.0135 is a 95% CI for out-of-sample error.
+
+## Visualisation
+
+```{r, fig.align='center', message=FALSE}
+library(randomForest)
+varImpPlot(model_rf_pca$finalModel)
+principals <- prcomp(training_nsv_dum[, -83], center = TRUE, scale = TRUE)
+plot(principals, type = "l")
+```
+
